@@ -9,7 +9,20 @@
 
 #define MAX_LOADSTRING 100
 
-enum Mouse { No, Left, Right };
+/**
+ * Тип перечисления с событиями для мыши:
+ * no - нет события;
+ * left - нажата левая клавиша мыши;
+ * right - нажата правая клавиша мыши.
+*/
+enum Mouse_Event { no, left, right };
+
+// Структура хранит информацию о размерах прямоугольника
+struct Size
+{
+	int size_x; // горизонтальный размер
+	int size_y; // вертикальный размер
+};
 
 // Глобальные переменные
 HINSTANCE hInst; // текущий экземпляр
@@ -61,11 +74,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 }
 
 
-//
-//  ФУНКЦИЯ: MyRegisterClass()
-//
-//  ЦЕЛЬ: Регистрирует класс окна.
-//
+/**
+ * Функция регистрирует класс окна.
+ * @param hInstance - дескриптор приложения.
+ * @return atom окна в случае успешной регистрации класса окна. Иначе
+ * возвращается 0.
+ */
 ATOM MyRegisterClass(HINSTANCE hInstance)
 {
 	WNDCLASSEXW wcex;
@@ -88,19 +102,15 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 }
 
 
-//
-//   ФУНКЦИЯ: InitInstance(HINSTANCE, int)
-//
-//   ЦЕЛЬ: Сохраняет маркер экземпляра и создает главное окно
-//
-//   КОММЕНТАРИИ:
-//
-//        В этой функции маркер экземпляра сохраняется в глобальной переменной, а также
-//        создается и выводится главное окно программы.
-//
+/**
+ * Функция сохраняет маркер экземпляра и создает главное окно.
+ * @param hInstance - дескриптор приложения;
+ * @param nCmdShow - режим отображения окна.
+ * @return TRUE, если главное окно приложения создано. Иначе FALSE.
+ */
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
-	hInst = hInstance; // Сохранить маркер экземпляра в глобальной переменной
+	hInst = hInstance; // сохранить маркер экземпляра в глобальной переменной
 
 	HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
@@ -117,92 +127,94 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 }
 
 
-// Функция для рисования прямоугольника
-void display_rect(HDC hdc, int sx, int sy, int rx, int ry, Mouse event, HPEN hPens[])
+/**
+ * Функция рисует прямоугольник по центру клиентской области окна.
+ * @param hdc - дескриптор контекста устройства;
+ * @param wnd_size - структура с размерами клиентской области окна;
+ * @param rect_size - структура с размерами прямоугольника;
+ * @param event - событие, случившееся с мышкой;
+ * @param hPens - массив с перьями для рисования прямоугольника.
+ */
+void display_rect(HDC hdc, Size wnd_size, Size rect_size, Mouse_Event event, HPEN hPens[])
 {
-	if (event == No)
-	{
-		SelectObject(hdc, hPens[0]);
-	}
-	else if (event == Left)
-	{
-		SelectObject(hdc, hPens[1]);
-	}
-	else if (event == Right)
-	{
-		SelectObject(hdc, hPens[2]);
-	}
-	Rectangle(hdc, (sx - rx) / 2, (sy - ry) / 2, (sx + rx) / 2, (sy + ry) / 2);
+	// Выбираем перо, с которым будет нарисован прямоугольник
+	SelectObject(hdc, hPens[event]);
+	// Рисуем прямоугольник
+	int x_left_up = (wnd_size.size_x - rect_size.size_x) / 2;
+	int x_right_down = (wnd_size.size_x + rect_size.size_x) / 2;
+	int y_left_up = (wnd_size.size_y - rect_size.size_y) / 2;
+	int y_right_down = (wnd_size.size_y + rect_size.size_y) / 2;
+	Rectangle(hdc, x_left_up, y_left_up, x_right_down, y_right_down);
 }
 
 
-//
-//  ФУНКЦИЯ: WndProc(HWND, UINT, WPARAM, LPARAM)
-//
-//  ЦЕЛЬ: Обрабатывает сообщения в главном окне.
-//
-//  WM_COMMAND  - обработать меню приложения
-//  WM_PAINT    - Отрисовка главного окна
-//  WM_DESTROY  - отправить сообщение о выходе и вернуться
-//
-//
+/**
+ * Функция обрабатывает сообщения в главном окне.
+ * @param hWnd - дексриптор главного окна;
+ * @param message - номер сообщения;
+ * @wParam - параметр содержит дополнительные сведения о сообщении;
+ * @lParam - параметр содержит дополнительные сведения о сообщении.
+ * @return .
+ */
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	HDC hdc;
-	static bool is_created_now; // параметр показыает, создано ли окно только что
+	HDC hdc; // дескриптор контекста устройства
 	int x, y;
-	static int size_x, size_y; // горизонтальный и вертикальный размеры клиентской области окна
-	static int rect_x, rect_y; // горизонтальный и вертикальный размеры прямоугольника
-	static HPEN hPens[3];
-	static Mouse mouse_event; // параметр хранит событие с мышкой
+	static bool created_now; // параметр показыает, создано ли окно только что
+	static HPEN hPens[3]; // массив из перьев для рисования прямоугольника на экране
+	static Mouse_Event mouse_event; // параметр хранит событие с мышкой
+	static Size wnd_size; // структура с размерами клиентской области окна
+	static Size rect_size; // структура с размерами прямоугольника
+
 	switch (message)
 	{
 	case WM_CREATE:
 	{
-		// Сообщение при создании окна
-		hPens[0] = CreatePen(PS_SOLID, 2, RGB(0, 0, 0));
-		hPens[1] = CreatePen(PS_SOLID, 2, RGB(0, 0, 128));
-		hPens[2] = CreatePen(PS_SOLID, 2, RGB(128, 0, 0));
-		is_created_now = true; // окно создано только что
+		// Когда окно создается
+		// Создаются перья для рисования прямоугольника в разных ситуациях
+		hPens[no] = CreatePen(PS_SOLID, 2, RGB(0, 0, 0));
+		hPens[left] = CreatePen(PS_SOLID, 2, RGB(0, 0, 255));
+		hPens[right] = CreatePen(PS_SOLID, 2, RGB(255, 0, 0));
+		created_now = true; // окно создано только что
 		break;
 	}
 	case WM_SIZE:
 	{
-		// Сообщение при изменении размера окна
-		size_x = LOWORD(lParam);
-		size_y = HIWORD(lParam);
-		if (is_created_now)
+		// Когда изменяются размеры окна
+		wnd_size.size_x = LOWORD(lParam);
+		wnd_size.size_y = HIWORD(lParam);
+		if (created_now)
 		{
-			is_created_now = false;
-			// Исходные размеры прямоугольника
-			rect_x = size_x / 2;
-			rect_y = size_y / 2;
+			// Если окно создано только что, задаются размеры для прямоугольника
+			created_now = false;
+			rect_size.size_x = wnd_size.size_x / 2;
+			rect_size.size_y = wnd_size.size_y / 2;
 		}
 		break;
 	}
 	case WM_LBUTTONDOWN:
 	{
-		// Сообщение при нажатии на левую кнопку мыши
-		// Уменьшить размеры прямоугольника
-		rect_x -= D;
-		rect_y -= D;
-		mouse_event = Left;
+		// Когда нажимается левая кнопка мыши
+		// Нужно уменьшить размеры прямоугольника
+		rect_size.size_x -= D;
+		rect_size.size_y -= D;
+		mouse_event = left;
 		InvalidateRect(hWnd, NULL, TRUE);
 		break;
 	}
 	case WM_RBUTTONDOWN:
 	{
-		// Сообщение при нажатии на правую кнопку мыши
-		// Уменьшить размеры прямоугольника
-		rect_x += D;
-		rect_y += D;
-		mouse_event = Right;
+		// Когда нажимается правая кнопка мыши
+		// Нужно увеличить размеры прямоугольника
+		rect_size.size_x += D;
+		rect_size.size_y += D;
+		mouse_event = right;
 		InvalidateRect(hWnd, NULL, TRUE);
 		break;
 	}
 	case WM_COMMAND:
 	{
-		// Сообщения при работе с меню
+		// Когда кликаются пункты меню
 		int wmId = LOWORD(wParam);
 		// Разобрать выбор в меню
 		switch (wmId)
@@ -220,14 +232,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_PAINT:
 	{
-		PAINTSTRUCT ps;
+		// Когда нужно перерисовать окно
+		PAINTSTRUCT ps; // структура со всей информацией, необходимой для перерисовки окна
 		hdc = BeginPaint(hWnd, &ps);
-		display_rect(hdc, size_x, size_y, rect_x, rect_y, mouse_event, hPens);
+		display_rect(hdc, wnd_size, rect_size, mouse_event, hPens);
 		EndPaint(hWnd, &ps);
 		break;
 	}
 	case WM_DESTROY:
 	{
+		// Когда нужно завершить программу
+		// Удаляем созданные перья
 		for (auto h : hPens)
 		{
 			DeleteObject(h);
